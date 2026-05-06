@@ -1,4 +1,3 @@
-import React from 'react';
 import { Settings, Clock } from 'lucide-react';
 
 export default function Policies() {
