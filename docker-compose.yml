@@ -1,0 +1,88 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: syncguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: syncguard
+      POSTGRES_USER: syncguard
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U syncguard -d syncguard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: syncguard-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  authsvc:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.authsvc
+    container_name: syncguard-authsvc
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SYNCGUARD_DB_HOST: postgres
+      SYNCGUARD_DB_PORT: 5432
+      SYNCGUARD_DB_NAME: syncguard
+      SYNCGUARD_DB_USER: syncguard
+      SYNCGUARD_DB_PASSWORD: changeme
+      SYNCGUARD_DB_SSLMODE: disable
+      SYNCGUARD_REDIS_ADDR: redis:6379
+      SYNCGUARD_AUTH_LISTEN: :8080
+      SYNCGUARD_AUTH_JWT_SECRET: dev-secret-replace-in-production
+      SYNCGUARD_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  gateway:
+    build:
+      context: .
+      dockerfile: deploy/docker/Dockerfile.gateway
+    container_name: syncguard-gateway
+    restart: unless-stopped
+    depends_on:
+      authsvc:
+        condition: service_healthy
+    environment:
+      SYNCGUARD_GATEWAY_LISTEN: :8443
+      SYNCGUARD_GATEWAY_AUTH_SERVICE_URL: http://authsvc:8080
+      SYNCGUARD_GATEWAY_EXCHANGE_URL: http://host.docker.internal:80
+    ports:
+      - "8443:8443"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  postgres_data:
+  redis_data:
