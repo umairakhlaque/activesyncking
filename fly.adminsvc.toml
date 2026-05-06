@@ -1,0 +1,23 @@
+app            = "syncguard-adminsvc"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "deploy/docker/Dockerfile.adminsvc"
+
+[http_service]
+  internal_port        = 8090
+  force_https          = true
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 1
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"
+
+[[http_service.checks]]
+  interval     = "15s"
+  timeout      = "5s"
+  grace_period = "10s"
+  method       = "GET"
+  path         = "/healthz"

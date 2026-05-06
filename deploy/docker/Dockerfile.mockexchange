@@ -4,10 +4,10 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w" -o /bin/gateway ./cmd/gateway
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags "-s -w" -o /bin/mockexchange ./cmd/mockexchange
 
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
-COPY --from=builder /bin/gateway /gateway
+COPY --from=builder /bin/mockexchange /mockexchange
 EXPOSE 8080
-ENTRYPOINT ["/gateway"]
+ENTRYPOINT ["/mockexchange"]

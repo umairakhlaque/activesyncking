@@ -1,0 +1,30 @@
+app            = "syncguard-gateway"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "deploy/docker/Dockerfile.gateway"
+
+[http_service]
+  internal_port        = 8080
+  force_https          = true
+  auto_stop_machines   = "stop"
+  auto_start_machines  = true
+  min_machines_running = 1
+
+  # EAS clients use long-lived keep-alive connections for Ping/Sync commands.
+  # Increase timeouts accordingly.
+  [http_service.concurrency]
+    type       = "connections"
+    soft_limit = 100
+    hard_limit = 120
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"
+
+[[http_service.checks]]
+  interval     = "15s"
+  timeout      = "5s"
+  grace_period = "10s"
+  method       = "GET"
+  path         = "/healthz"

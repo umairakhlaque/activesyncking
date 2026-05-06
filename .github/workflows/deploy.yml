@@ -1,0 +1,241 @@
+name: Deploy
+
+# Deploys to Fly.io (backend) and Vercel (frontend) after CI passes.
+# Triggered only on pushes to main or the active development branch.
+#
+# ── Required GitHub Secrets ────────────────────────────────────────────────────
+#
+#   FLY_API_TOKEN
+#     From: fly.io → Account Settings → Access Tokens → Create token
+#
+#   VERCEL_TOKEN
+#     From: vercel.com → Settings → Tokens → Create
+#
+#   VERCEL_ORG_ID
+#     From: vercel.com → Settings → General → Team ID  (or your personal account ID)
+#     Run locally: npx vercel link  →  cat .vercel/project.json | grep orgId
+#
+#   VERCEL_PROJECT_ID
+#     From: vercel.com after linking project
+#     Run locally: npx vercel link  →  cat .vercel/project.json | grep projectId
+#
+#   NEON_DATABASE_URL
+#     From: console.neon.tech → your project → Connection Details → Connection string
+#     Format: postgresql://user:pass@ep-xxx.eu-west-2.aws.neon.tech/syncguard?sslmode=require
+#
+#   UPSTASH_REDIS_URL
+#     From: console.upstash.com → your database → Details → Redis URL (use TLS endpoint)
+#     Format: rediss://default:password@host:port
+#
+#   SYNCGUARD_JWT_SECRET
+#     Generate: openssl rand -base64 48
+#
+#   SYNCGUARD_ENCRYPTION_KEY
+#     Generate: openssl rand -hex 32
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  push:
+    branches:
+      - main
+      - "claude/**"
+
+# Only run one deploy at a time — cancel any in-progress deploy for the same branch
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ── Gate: CI must pass first ─────────────────────────────────────────────────
+  ci-gate:
+    name: Wait for CI
+    uses: ./.github/workflows/ci.yml
+
+  # ── Deploy: Mock Exchange ────────────────────────────────────────────────────
+  deploy-mockexchange:
+    name: Deploy mock-exchange → Fly.io
+    needs: ci-gate
+    runs-on: ubuntu-latest
+    env:
+      FLY_APP: syncguard-mockexchange
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create app if it does not exist
+        run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy
+        run: flyctl deploy --config fly.mockexchange.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── Deploy: Auth Service ─────────────────────────────────────────────────────
+  deploy-authsvc:
+    name: Deploy authsvc → Fly.io
+    needs: [ci-gate, deploy-mockexchange]
+    runs-on: ubuntu-latest
+    env:
+      FLY_APP: syncguard-authsvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create app if it does not exist
+        run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            SYNCGUARD_DB_DATABASE_URL="${{ secrets.NEON_DATABASE_URL }}" \
+            SYNCGUARD_DB_SSLMODE="require" \
+            SYNCGUARD_REDIS_URL="${{ secrets.UPSTASH_REDIS_URL }}" \
+            SYNCGUARD_AUTH_JWT_SECRET="${{ secrets.SYNCGUARD_JWT_SECRET }}" \
+            SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
+            SYNCGUARD_AUTH_LISTEN=":8080" \
+            --app ${{ env.FLY_APP }} --stage
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy (runs /migrate as release_command before traffic shifts)
+        run: flyctl deploy --config fly.authsvc.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── Deploy: Gateway ──────────────────────────────────────────────────────────
+  deploy-gateway:
+    name: Deploy gateway → Fly.io
+    needs: [ci-gate, deploy-authsvc]
+    runs-on: ubuntu-latest
+    env:
+      FLY_APP: syncguard-gateway
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create app if it does not exist
+        run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            SYNCGUARD_GATEWAY_LISTEN=":8080" \
+            SYNCGUARD_GATEWAY_EXCHANGE_URL="https://syncguard-mockexchange.fly.dev" \
+            SYNCGUARD_GATEWAY_AUTH_SERVICE_URL="https://syncguard-authsvc.fly.dev" \
+            SYNCGUARD_GATEWAY_FAIL_CLOSED="true" \
+            --app ${{ env.FLY_APP }} --stage
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy
+        run: flyctl deploy --config fly.gateway.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── Deploy: Admin Service ────────────────────────────────────────────────────
+  deploy-adminsvc:
+    name: Deploy adminsvc → Fly.io
+    needs: [ci-gate, deploy-authsvc]
+    runs-on: ubuntu-latest
+    env:
+      FLY_APP: syncguard-adminsvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Create app if it does not exist
+        run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Set secrets
+        run: |
+          flyctl secrets set \
+            SYNCGUARD_DB_DATABASE_URL="${{ secrets.NEON_DATABASE_URL }}" \
+            SYNCGUARD_DB_SSLMODE="require" \
+            SYNCGUARD_REDIS_URL="${{ secrets.UPSTASH_REDIS_URL }}" \
+            SYNCGUARD_AUTH_JWT_SECRET="${{ secrets.SYNCGUARD_JWT_SECRET }}" \
+            SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
+            SYNCGUARD_ADMIN_LISTEN=":8090" \
+            SYNCGUARD_ADMIN_CORS_ORIGINS="https://admin.noem.tech" \
+            --app ${{ env.FLY_APP }} --stage
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+      - name: Deploy
+        run: flyctl deploy --config fly.adminsvc.toml --remote-only --wait-timeout 300
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+
+  # ── Deploy: Admin Portal (Vercel) ────────────────────────────────────────────
+  deploy-frontend:
+    name: Deploy admin portal → Vercel
+    needs: ci-gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/admin/package.json
+
+      - name: Install dependencies
+        working-directory: web/admin
+        run: npm install
+
+      - name: Build
+        working-directory: web/admin
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://api.noem.tech
+
+      - name: Deploy to Vercel
+        working-directory: web/admin
+        run: |
+          npx vercel deploy dist/ \
+            --token=${{ secrets.VERCEL_TOKEN }} \
+            --yes \
+            ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+  # ── Summary ──────────────────────────────────────────────────────────────────
+  deploy-summary:
+    name: Deployment summary
+    needs:
+      - deploy-gateway
+      - deploy-adminsvc
+      - deploy-frontend
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Print URLs
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  SyncGuard MFA — Deployment complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "  Admin Portal : https://admin.noem.tech"
+          echo "  Auth API     : https://syncguard-authsvc.fly.dev"
+          echo "  EAS Gateway  : https://syncguard-gateway.fly.dev"
+          echo "  Mock Exchange: https://syncguard-mockexchange.fly.dev"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

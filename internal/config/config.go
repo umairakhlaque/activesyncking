@@ -24,17 +24,29 @@ type Config struct {
 }
 
 type DBConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	Name     string `mapstructure:"name"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	SSLMode  string `mapstructure:"sslmode"`
-	MaxConns int    `mapstructure:"max_conns"`
-	MinConns int    `mapstructure:"min_conns"`
+	// DatabaseURL takes full precedence when set (e.g. Neon connection string).
+	// Format: postgres://user:pass@host/dbname?sslmode=require
+	DatabaseURL string `mapstructure:"database_url"`
+	Host        string `mapstructure:"host"`
+	Port        int    `mapstructure:"port"`
+	Name        string `mapstructure:"name"`
+	User        string `mapstructure:"user"`
+	Password    string `mapstructure:"password"`
+	SSLMode     string `mapstructure:"sslmode"`
+	MaxConns    int    `mapstructure:"max_conns"`
+	MinConns    int    `mapstructure:"min_conns"`
 }
 
 func (d DBConfig) DSN() string {
+	if d.DatabaseURL != "" {
+		// Append pool sizing if not already present
+		sep := "?"
+		if strings.Contains(d.DatabaseURL, "?") {
+			sep = "&"
+		}
+		return fmt.Sprintf("%s%spool_max_conns=%d&pool_min_conns=%d",
+			d.DatabaseURL, sep, d.MaxConns, d.MinConns)
+	}
 	return fmt.Sprintf(
 		"host=%s port=%d dbname=%s user=%s password=%s sslmode=%s pool_max_conns=%d pool_min_conns=%d",
 		d.Host, d.Port, d.Name, d.User, d.Password, d.SSLMode, d.MaxConns, d.MinConns,
@@ -42,6 +54,8 @@ func (d DBConfig) DSN() string {
 }
 
 type RedisConfig struct {
+	// URL takes full precedence when set (e.g. Upstash rediss:// connection string).
+	URL      string `mapstructure:"url"`
 	Addr     string `mapstructure:"addr"`
 	Password string `mapstructure:"password"`
 	DB       int    `mapstructure:"db"`

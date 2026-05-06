@@ -1,0 +1,34 @@
+app            = "syncguard-authsvc"
+primary_region = "lhr"
+
+[build]
+  dockerfile = "deploy/docker/Dockerfile.authsvc"
+
+[deploy]
+  # Run migrations atomically before the new version receives traffic.
+  # If migrations fail, the deploy is aborted — the old version keeps running.
+  release_command = "/migrate"
+
+[http_service]
+  internal_port       = 8080
+  force_https         = true
+  auto_stop_machines  = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type       = "requests"
+    soft_limit = 200
+    hard_limit = 250
+
+[[vm]]
+  size   = "shared-cpu-1x"
+  memory = "256mb"
+
+# Health check — Fly.io uses this to decide when a machine is ready
+[[http_service.checks]]
+  interval = "15s"
+  timeout  = "5s"
+  grace_period = "10s"
+  method   = "GET"
+  path     = "/healthz"

@@ -24,11 +24,21 @@ type Store struct {
 }
 
 func NewStore(cfg config.RedisConfig) (*Store, error) {
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Addr,
-		Password: cfg.Password,
-		DB:       cfg.DB,
-	})
+	var rdb *redis.Client
+	if cfg.URL != "" {
+		// Upstash and other managed Redis providers supply a full rediss:// URL
+		opt, err := redis.ParseURL(cfg.URL)
+		if err != nil {
+			return nil, fmt.Errorf("parsing redis url: %w", err)
+		}
+		rdb = redis.NewClient(opt)
+	} else {
+		rdb = redis.NewClient(&redis.Options{
+			Addr:     cfg.Addr,
+			Password: cfg.Password,
+			DB:       cfg.DB,
+		})
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

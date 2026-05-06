@@ -1,0 +1,146 @@
+// migrate applies SQL migrations to the SyncGuard database.
+// It is run as a Fly.io release_command before each new deployment,
+// ensuring the schema is always up to date before traffic shifts to the new version.
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/umairakhlaque/activesyncking/internal/config"
+	"github.com/umairakhlaque/activesyncking/internal/store"
+)
+
+const migrationsDir = "/migrations"
+
+func main() {
+	slog.Info("SyncGuard migration runner starting")
+
+	cfg, err := config.Load("")
+	if err != nil {
+		slog.Error("failed to load config", "err", err)
+		os.Exit(1)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	pool, err := store.Open(ctx, cfg.DB)
+	if err != nil {
+		slog.Error("failed to connect to database", "err", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	if err := ensureMigrationsTable(ctx, pool); err != nil {
+		slog.Error("failed to create migrations table", "err", err)
+		os.Exit(1)
+	}
+
+	applied, err := appliedMigrations(ctx, pool)
+	if err != nil {
+		slog.Error("failed to read applied migrations", "err", err)
+		os.Exit(1)
+	}
+
+	files, err := pendingMigrations(applied)
+	if err != nil {
+		slog.Error("failed to find migration files", "err", err)
+		os.Exit(1)
+	}
+
+	if len(files) == 0 {
+		slog.Info("no pending migrations")
+		return
+	}
+
+	for _, f := range files {
+		if err := applyMigration(ctx, pool, f); err != nil {
+			slog.Error("migration failed", "file", f, "err", err)
+			os.Exit(1)
+		}
+		slog.Info("migration applied", "file", filepath.Base(f))
+	}
+
+	slog.Info("all migrations applied successfully", "count", len(files))
+}
+
+func ensureMigrationsTable(ctx context.Context, pool *pgxpool.Pool) error {
+	_, err := pool.Exec(ctx, `
+		CREATE TABLE IF NOT EXISTS schema_migrations (
+			filename   TEXT PRIMARY KEY,
+			applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`)
+	return err
+}
+
+func appliedMigrations(ctx context.Context, pool *pgxpool.Pool) (map[string]bool, error) {
+	rows, err := pool.Query(ctx, `SELECT filename FROM schema_migrations`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	applied := make(map[string]bool)
+	for rows.Next() {
+		var name string
+		if err := rows.Scan(&name); err != nil {
+			return nil, err
+		}
+		applied[name] = true
+	}
+	return applied, rows.Err()
+}
+
+func pendingMigrations(applied map[string]bool) ([]string, error) {
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return nil, fmt.Errorf("reading migrations dir %s: %w", migrationsDir, err)
+	}
+
+	var pending []string
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".up.sql") {
+			continue
+		}
+		if !applied[e.Name()] {
+			pending = append(pending, filepath.Join(migrationsDir, e.Name()))
+		}
+	}
+
+	sort.Strings(pending)
+	return pending, nil
+}
+
+func applyMigration(ctx context.Context, pool *pgxpool.Pool, path string) error {
+	sql, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("reading %s: %w", path, err)
+	}
+
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("beginning transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, string(sql)); err != nil {
+		return fmt.Errorf("executing migration: %w", err)
+	}
+
+	if _, err := tx.Exec(ctx,
+		`INSERT INTO schema_migrations (filename) VALUES ($1)`,
+		filepath.Base(path),
+	); err != nil {
+		return fmt.Errorf("recording migration: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
