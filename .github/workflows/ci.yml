@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  # ── Go backend ──────────────────────────────────────────────────────────────
+  go:
+    name: Go — build / vet / test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: syncguard_test
+          POSTGRES_USER: syncguard
+          POSTGRES_PASSWORD: testpassword
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U syncguard -d syncguard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      SYNCGUARD_DB_HOST: localhost
+      SYNCGUARD_DB_PORT: 5432
+      SYNCGUARD_DB_NAME: syncguard_test
+      SYNCGUARD_DB_USER: syncguard
+      SYNCGUARD_DB_PASSWORD: testpassword
+      SYNCGUARD_DB_SSLMODE: disable
+      SYNCGUARD_REDIS_ADDR: localhost:6379
+      SYNCGUARD_AUTH_JWT_SECRET: ci-test-jwt-secret-minimum-32-characters
+      SYNCGUARD_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Verify modules
+        run: go mod verify
+
+      - name: Build all binaries
+        run: go build ./cmd/...
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test -race -timeout 120s -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: go-coverage
+          path: coverage.out
+
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  frontend:
+    name: Frontend — install / type-check / build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web/admin
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/admin/package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Type-check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
