@@ -13,6 +13,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/umairakhlaque/activesyncking/internal/admin"
 	"github.com/umairakhlaque/activesyncking/internal/config"
 	"github.com/umairakhlaque/activesyncking/internal/store"
 )
@@ -33,6 +34,10 @@ func main() {
 		log.Fatal("failed to load config", zap.Error(err))
 	}
 
+	if cfg.Admin.APIKey == "" {
+		log.Fatal("admin.api_key must not be empty — set SYNCGUARD_ADMIN_API_KEY")
+	}
+
 	if err := run(cfg, log); err != nil {
 		log.Fatal("fatal error", zap.Error(err))
 	}
@@ -48,17 +53,16 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	}
 	defer pool.Close()
 
-	mux := http.NewServeMux()
+	adminStore := admin.NewStore(pool)
+	deviceStore := store.NewDeviceStore(pool)
+	userStore := store.NewUserStore(pool)
 
-	// Placeholder — admin portal API handlers wired in Phase 2
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintln(w, `{"status":"ok","service":"adminsvc"}`)
-	})
+	handler := admin.NewHandler(adminStore, deviceStore, userStore, cfg.Admin.APIKey, log)
+	router := admin.NewRouter(handler, cfg.Admin.APIKey, cfg.Admin.CORSOrigins)
 
 	srv := &http.Server{
 		Addr:         cfg.Admin.Listen,
-		Handler:      mux,
+		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  60 * time.Second,

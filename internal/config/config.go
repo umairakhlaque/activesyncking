@@ -84,6 +84,7 @@ type GatewayConfig struct {
 type AdminConfig struct {
 	Listen      string   `mapstructure:"listen"`
 	CORSOrigins []string `mapstructure:"cors_origins"`
+	APIKey      string   `mapstructure:"api_key"`
 }
 
 type EmailConfig struct {

@@ -1,46 +1,23 @@
 import { useState } from 'react';
-import type { AuditResult, AuditSeverity } from '../api/client';
-
-interface AuditRow {
-  id: string;
-  time: string;
-  action: string;
-  username: string;
-  device: string;
-  ip: string;
-  result: AuditResult;
-  severity: AuditSeverity;
-}
-
-const PLACEHOLDER_AUDIT: AuditRow[] = [
-  { id: '1', time: '2026-05-06 09:47:12', action: 'ACTIVESYNC_AUTH', username: 'jsmith', device: 'DEV-A1B2C3', ip: '10.0.1.55', result: 'allow', severity: 'info' },
-  { id: '2', time: '2026-05-06 09:45:03', action: 'DEVICE_ENROL', username: 'lchen', device: 'DEV-D4E5F6', ip: '10.0.2.12', result: 'allow', severity: 'info' },
-  { id: '3', time: '2026-05-06 09:41:58', action: 'MFA_CHALLENGE_FAIL', username: 'rgarcia', device: 'DEV-G7H8I9', ip: '10.0.3.77', result: 'deny', severity: 'warning' },
-  { id: '4', time: '2026-05-06 09:38:22', action: 'ACTIVESYNC_AUTH', username: 'bwilson', device: 'DEV-J0K1L2', ip: '192.168.10.8', result: 'allow', severity: 'info' },
-  { id: '5', time: '2026-05-06 09:30:01', action: 'POLICY_BLOCK', username: 'unknown', device: 'DEV-M3N4O5', ip: '185.220.101.4', result: 'deny', severity: 'critical' },
-  { id: '6', time: '2026-05-06 09:22:44', action: 'ACTIVESYNC_AUTH', username: 'cdavis', device: 'DEV-V2W3X4', ip: '10.0.1.200', result: 'allow', severity: 'info' },
-  { id: '7', time: '2026-05-06 09:15:30', action: 'DEVICE_BLOCKED', username: 'afoster', device: 'DEV-S9T0U1', ip: '10.0.5.9', result: 'deny', severity: 'warning' },
-  { id: '8', time: '2026-05-06 09:01:17', action: 'MFA_CHALLENGE_FAIL', username: 'tpatel', device: 'DEV-P6Q7R8', ip: '203.0.113.50', result: 'deny', severity: 'critical' },
-  { id: '9', time: '2026-05-06 08:55:02', action: 'ACTIVESYNC_AUTH', username: 'cdavis', device: 'DEV-V2W3X4', ip: '10.0.1.200', result: 'allow', severity: 'info' },
-  { id: '10', time: '2026-05-05 22:14:00', action: 'QUARANTINE_AUTO', username: 'tpatel', device: 'DEV-M3N4O5', ip: '203.0.113.50', result: 'deny', severity: 'critical' },
-];
+import { useQuery } from '@tanstack/react-query';
+import { auditApi, type AuditResult, type AuditSeverity } from '../api/client';
 
 const RESULT_STYLE: Record<AuditResult, React.CSSProperties> = {
   allow: { backgroundColor: '#dcfce7', color: '#166534' },
-  deny: { backgroundColor: '#fee2e2', color: '#991b1b' },
+  deny:  { backgroundColor: '#fee2e2', color: '#991b1b' },
   error: { backgroundColor: '#fef3c7', color: '#92400e' },
 };
 
 const SEVERITY_STYLE: Record<AuditSeverity, React.CSSProperties> = {
-  info: { backgroundColor: '#eff6ff', color: '#1d4ed8' },
-  warning: { backgroundColor: '#fef9c3', color: '#854d0e' },
+  info:     { backgroundColor: '#eff6ff', color: '#1d4ed8' },
+  warning:  { backgroundColor: '#fef9c3', color: '#854d0e' },
   critical: { backgroundColor: '#fee2e2', color: '#991b1b' },
 };
 
 const s = {
   header: { marginBottom: '20px' } as React.CSSProperties,
   pageTitle: { fontSize: '22px', fontWeight: 700, color: '#0f172a' } as React.CSSProperties,
-  pageSub: { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
+  pageSub:   { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
 
   filterRow: {
     display: 'flex',
@@ -98,36 +75,40 @@ const s = {
 
 type SeverityFilter = 'all' | AuditSeverity;
 
+const SEVERITY_FILTERS: Array<{ value: SeverityFilter; label: string }> = [
+  { value: 'all',      label: 'All' },
+  { value: 'info',     label: 'Info' },
+  { value: 'warning',  label: 'Warning' },
+  { value: 'critical', label: 'Critical' },
+];
+
 export default function AuditLog() {
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>('all');
 
-  const filtered =
-    severityFilter === 'all'
-      ? PLACEHOLDER_AUDIT
-      : PLACEHOLDER_AUDIT.filter((e) => e.severity === severityFilter);
+  const { data, isLoading } = useQuery({
+    queryKey: ['audit'],
+    queryFn: () => auditApi.list(1, 200),
+    refetchInterval: 15_000,
+  });
 
-  const severityFilters: Array<{ value: SeverityFilter; label: string }> = [
-    { value: 'all', label: 'All' },
-    { value: 'info', label: 'Info' },
-    { value: 'warning', label: 'Warning' },
-    { value: 'critical', label: 'Critical' },
-  ];
+  const allEvents = data?.items ?? [];
+  const filtered = severityFilter === 'all'
+    ? allEvents
+    : allEvents.filter((e) => e.severity === severityFilter);
 
   return (
     <div>
       <div style={s.header}>
         <div style={s.pageTitle}>Audit Log</div>
-        <div style={s.pageSub}>Authentication and policy enforcement events</div>
+        <div style={s.pageSub}>
+          {isLoading ? 'Loading…' : `${data?.total ?? 0} total events`}
+        </div>
       </div>
 
       <div style={s.filterRow}>
         <span style={{ fontSize: '12px', color: '#64748b', marginRight: '4px' }}>Severity:</span>
-        {severityFilters.map(({ value, label }) => (
-          <button
-            key={value}
-            style={s.filterBtn(severityFilter === value)}
-            onClick={() => setSeverityFilter(value)}
-          >
+        {SEVERITY_FILTERS.map(({ value, label }) => (
+          <button key={value} style={s.filterBtn(severityFilter === value)} onClick={() => setSeverityFilter(value)}>
             {label}
           </button>
         ))}
@@ -147,30 +128,41 @@ export default function AuditLog() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((ev) => (
-              <tr key={ev.id}>
-                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap', color: '#64748b' }}>
-                  {ev.time}
-                </td>
-                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.action}</td>
-                <td style={{ ...s.td, fontWeight: 500 }}>{ev.username}</td>
-                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.device}</td>
-                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.ip}</td>
-                <td style={s.td}>
-                  <span style={s.pill(RESULT_STYLE[ev.result])}>{ev.result}</span>
-                </td>
-                <td style={s.td}>
-                  <span style={s.pill(SEVERITY_STYLE[ev.severity])}>{ev.severity}</span>
+            {isLoading && (
+              <tr>
+                <td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  Loading…
                 </td>
               </tr>
-            ))}
-            {filtered.length === 0 && (
+            )}
+            {!isLoading && filtered.length === 0 && (
               <tr>
                 <td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
                   No events match the current filter.
                 </td>
               </tr>
             )}
+            {filtered.map((ev) => (
+              <tr key={ev.id}>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px', whiteSpace: 'nowrap', color: '#64748b' }}>
+                  {ev.timestamp}
+                </td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.action}</td>
+                <td style={{ ...s.td, fontWeight: 500 }}>{ev.username || '—'}</td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.deviceId || '—'}</td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.ipAddress || '—'}</td>
+                <td style={s.td}>
+                  <span style={s.pill(RESULT_STYLE[ev.result as AuditResult] ?? RESULT_STYLE.error)}>
+                    {ev.result}
+                  </span>
+                </td>
+                <td style={s.td}>
+                  <span style={s.pill(SEVERITY_STYLE[ev.severity as AuditSeverity] ?? SEVERITY_STYLE.warning)}>
+                    {ev.severity}
+                  </span>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>

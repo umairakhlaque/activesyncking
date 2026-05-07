@@ -3,7 +3,7 @@ import axios, { type AxiosInstance, type AxiosResponse } from 'axios';
 // ── Base client ──────────────────────────────────────────────────────────────
 
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: '/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL ?? '',
   timeout: 15_000,
   headers: {
     'Content-Type': 'application/json',

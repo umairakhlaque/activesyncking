@@ -1,30 +1,11 @@
 import { useState } from 'react';
-import type { DeviceStatus } from '../api/client';
-
-interface DeviceRow {
-  id: string;
-  deviceId: string;
-  username: string;
-  type: string;
-  status: DeviceStatus;
-  lastSeen: string;
-}
-
-const PLACEHOLDER_DEVICES: DeviceRow[] = [
-  { id: '1', deviceId: 'DEV-A1B2C3', username: 'jsmith', type: 'iPhone 15 Pro (iOS 17)', status: 'approved', lastSeen: '2026-05-06 09:47' },
-  { id: '2', deviceId: 'DEV-D4E5F6', username: 'lchen', type: 'Galaxy S24 (Android 14)', status: 'approved', lastSeen: '2026-05-06 09:45' },
-  { id: '3', deviceId: 'DEV-G7H8I9', username: 'rgarcia', type: 'Outlook / Windows 11', status: 'pending', lastSeen: '2026-05-06 09:41' },
-  { id: '4', deviceId: 'DEV-J0K1L2', username: 'bwilson', type: 'iPad Air (iPadOS 17)', status: 'approved', lastSeen: '2026-05-06 09:38' },
-  { id: '5', deviceId: 'DEV-M3N4O5', username: 'tpatel', type: 'Unknown Android', status: 'quarantined', lastSeen: '2026-05-05 22:14' },
-  { id: '6', deviceId: 'DEV-P6Q7R8', username: 'mnovak', type: 'Pixel 8 (Android 14)', status: 'pending', lastSeen: '2026-05-05 18:30' },
-  { id: '7', deviceId: 'DEV-S9T0U1', username: 'afoster', type: 'iPhone 14 (iOS 16)', status: 'blocked', lastSeen: '2026-05-04 11:02' },
-  { id: '8', deviceId: 'DEV-V2W3X4', username: 'cdavis', type: 'MacBook / Outlook 365', status: 'approved', lastSeen: '2026-05-06 08:55' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { devicesApi, type Device, type DeviceStatus } from '../api/client';
 
 const STATUS_STYLE: Record<DeviceStatus, React.CSSProperties> = {
-  approved: { backgroundColor: '#dcfce7', color: '#166534' },
-  pending: { backgroundColor: '#fef9c3', color: '#854d0e' },
-  blocked: { backgroundColor: '#fee2e2', color: '#991b1b' },
+  approved:    { backgroundColor: '#dcfce7', color: '#166534' },
+  pending:     { backgroundColor: '#fef9c3', color: '#854d0e' },
+  blocked:     { backgroundColor: '#fee2e2', color: '#991b1b' },
   quarantined: { backgroundColor: '#fce7f3', color: '#9d174d' },
 };
 
@@ -37,7 +18,7 @@ const s = {
   } as React.CSSProperties,
 
   pageTitle: { fontSize: '22px', fontWeight: 700, color: '#0f172a' } as React.CSSProperties,
-  pageSub: { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
+  pageSub:   { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
 
   tableCard: {
     backgroundColor: '#fff',
@@ -75,8 +56,8 @@ const s = {
 
   actionBtn: (variant: 'approve' | 'block' | 'quarantine'): React.CSSProperties => {
     const map = {
-      approve: { color: '#166534', borderColor: '#86efac', backgroundColor: '#f0fdf4' },
-      block: { color: '#991b1b', borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
+      approve:    { color: '#166534', borderColor: '#86efac', backgroundColor: '#f0fdf4' },
+      block:      { color: '#991b1b', borderColor: '#fca5a5', backgroundColor: '#fef2f2' },
       quarantine: { color: '#9d174d', borderColor: '#f9a8d4', backgroundColor: '#fdf4ff' },
     };
     return {
@@ -113,42 +94,46 @@ const s = {
 
 type FilterValue = 'all' | DeviceStatus;
 
+const FILTERS: Array<{ value: FilterValue; label: string }> = [
+  { value: 'all',         label: 'All' },
+  { value: 'approved',    label: 'Approved' },
+  { value: 'pending',     label: 'Pending' },
+  { value: 'blocked',     label: 'Blocked' },
+  { value: 'quarantined', label: 'Quarantined' },
+];
+
 export default function Devices() {
   const [filter, setFilter] = useState<FilterValue>('all');
-  const [rows, setRows] = useState<DeviceRow[]>(PLACEHOLDER_DEVICES);
+  const qc = useQueryClient();
 
-  const filtered = filter === 'all' ? rows : rows.filter((r) => r.status === filter);
+  const { data, isLoading } = useQuery({
+    queryKey: ['devices'],
+    queryFn: () => devicesApi.list(1, 200),
+    refetchInterval: 30_000,
+  });
 
-  const handleAction = (id: string, action: 'approve' | 'block' | 'quarantine') => {
-    const statusMap: Record<'approve' | 'block' | 'quarantine', DeviceStatus> = {
-      approve: 'approved',
-      block: 'blocked',
-      quarantine: 'quarantined',
-    };
-    setRows((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, status: statusMap[action] } : r)),
-    );
+  const allDevices: Device[] = data?.items ?? [];
+  const filtered = filter === 'all' ? allDevices : allDevices.filter((d) => d.status === filter);
+
+  const handleAction = async (id: string, action: 'approve' | 'block' | 'quarantine') => {
+    await devicesApi.action(id, { action });
+    qc.invalidateQueries({ queryKey: ['devices'] });
+    qc.invalidateQueries({ queryKey: ['dashboard-stats'] });
   };
-
-  const filters: Array<{ value: FilterValue; label: string }> = [
-    { value: 'all', label: 'All' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'blocked', label: 'Blocked' },
-    { value: 'quarantined', label: 'Quarantined' },
-  ];
 
   return (
     <div>
       <div style={s.header}>
         <div>
           <div style={s.pageTitle}>Devices</div>
-          <div style={s.pageSub}>{rows.length} devices registered</div>
+          <div style={s.pageSub}>
+            {isLoading ? 'Loading…' : `${data?.total ?? 0} devices registered`}
+          </div>
         </div>
       </div>
 
       <div style={s.filterRow}>
-        {filters.map(({ value, label }) => (
+        {FILTERS.map(({ value, label }) => (
           <button key={value} style={s.filterBtn(filter === value)} onClick={() => setFilter(value)}>
             {label}
           </button>
@@ -168,15 +153,31 @@ export default function Devices() {
             </tr>
           </thead>
           <tbody>
+            {isLoading && (
+              <tr>
+                <td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!isLoading && filtered.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  No devices match the current filter.
+                </td>
+              </tr>
+            )}
             {filtered.map((device) => (
               <tr key={device.id}>
                 <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{device.deviceId}</td>
                 <td style={{ ...s.td, fontWeight: 500 }}>{device.username}</td>
-                <td style={s.td}>{device.type}</td>
+                <td style={s.td}>{device.type || device.userAgent || '—'}</td>
                 <td style={s.td}>
                   <span style={s.statusBadge(device.status)}>{device.status}</span>
                 </td>
-                <td style={{ ...s.td, color: '#64748b', fontSize: '12px' }}>{device.lastSeen}</td>
+                <td style={{ ...s.td, color: '#64748b', fontSize: '12px' }}>
+                  {device.lastSeen ? new Date(device.lastSeen).toLocaleString('en-GB') : '—'}
+                </td>
                 <td style={s.td}>
                   {device.status !== 'approved' && (
                     <button style={s.actionBtn('approve')} onClick={() => handleAction(device.id, 'approve')}>
@@ -196,13 +197,6 @@ export default function Devices() {
                 </td>
               </tr>
             ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
-                  No devices match the current filter.
-                </td>
-              </tr>
-            )}
           </tbody>
         </table>
       </div>

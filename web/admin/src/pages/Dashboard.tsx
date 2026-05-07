@@ -1,60 +1,6 @@
+import { useQuery } from '@tanstack/react-query';
 import { Users, Smartphone, Clock, Activity } from 'lucide-react';
-
-interface StatCard {
-  label: string;
-  value: number | string;
-  sub: string;
-  color: string;
-  Icon: React.ElementType;
-}
-
-const STATS: StatCard[] = [
-  {
-    label: 'Total Users',
-    value: 1_284,
-    sub: '+12 this week',
-    color: '#3b82f6',
-    Icon: Users,
-  },
-  {
-    label: 'Total Devices',
-    value: 3_472,
-    sub: '98 pending approval',
-    color: '#10b981',
-    Icon: Smartphone,
-  },
-  {
-    label: 'Pending Approvals',
-    value: 98,
-    sub: '14 flagged as suspicious',
-    color: '#f59e0b',
-    Icon: Clock,
-  },
-  {
-    label: 'Auth Events (24h)',
-    value: '18,430',
-    sub: '34 denied, 6 MFA failures',
-    color: '#8b5cf6',
-    Icon: Activity,
-  },
-];
-
-interface RecentEvent {
-  id: string;
-  time: string;
-  action: string;
-  user: string;
-  device: string;
-  result: 'allow' | 'deny';
-}
-
-const RECENT_EVENTS: RecentEvent[] = [
-  { id: '1', time: '09:47:12', action: 'ActiveSync Auth', user: 'jsmith', device: 'iPhone 15 Pro', result: 'allow' },
-  { id: '2', time: '09:45:03', action: 'Device Enrolment', user: 'lchen', device: 'Galaxy S24', result: 'allow' },
-  { id: '3', time: '09:41:58', action: 'MFA Challenge', user: 'rgarcia', device: 'Outlook/Win11', result: 'deny' },
-  { id: '4', time: '09:38:22', action: 'ActiveSync Auth', user: 'bwilson', device: 'iPad Air', result: 'allow' },
-  { id: '5', time: '09:30:01', action: 'Policy Block', user: 'unknown', device: 'Unknown Android', result: 'deny' },
-];
+import { dashboardApi, auditApi, type AuditEvent } from '../api/client';
 
 const s = {
   pageTitle: {
@@ -160,7 +106,7 @@ const s = {
     color: '#334155',
   } as React.CSSProperties,
 
-  badge: (result: 'allow' | 'deny'): React.CSSProperties => ({
+  badge: (result: string): React.CSSProperties => ({
     display: 'inline-block',
     padding: '2px 8px',
     borderRadius: '12px',
@@ -169,33 +115,68 @@ const s = {
     backgroundColor: result === 'allow' ? '#dcfce7' : '#fee2e2',
     color: result === 'allow' ? '#166534' : '#991b1b',
   }),
+
+  skeleton: {
+    backgroundColor: '#e2e8f0',
+    borderRadius: '4px',
+    height: '28px',
+    width: '80px',
+    display: 'inline-block',
+  } as React.CSSProperties,
 };
 
+const STAT_DEFS = [
+  { key: 'totalUsers' as const,        label: 'Total Users',        color: '#3b82f6', Icon: Users },
+  { key: 'totalDevices' as const,      label: 'Total Devices',      color: '#10b981', Icon: Smartphone },
+  { key: 'pendingApprovals' as const,  label: 'Pending Approvals',  color: '#f59e0b', Icon: Clock },
+  { key: 'authEventsLast24h' as const, label: 'Auth Events (24h)',  color: '#8b5cf6', Icon: Activity },
+];
+
 export default function Dashboard() {
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: dashboardApi.stats,
+    refetchInterval: 60_000,
+  });
+
+  const { data: audit } = useQuery({
+    queryKey: ['audit-recent'],
+    queryFn: () => auditApi.list(1, 10),
+    refetchInterval: 30_000,
+  });
+
+  const recentEvents: AuditEvent[] = audit?.items ?? [];
+
   return (
     <div>
       <div style={s.pageTitle}>Dashboard</div>
       <div style={s.pageSubtitle}>
-        Overview of your SyncGuard MFA gateway — {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+        Overview of your SyncGuard MFA gateway —{' '}
+        {new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
       </div>
 
-      {/* Stat cards */}
       <div style={s.grid}>
-        {STATS.map((stat) => (
-          <div key={stat.label} style={s.card}>
+        {STAT_DEFS.map(({ key, label, color, Icon }) => (
+          <div key={key} style={s.card}>
             <div style={s.cardHeader}>
-              <span style={s.cardLabel}>{stat.label}</span>
-              <div style={s.cardIconWrap(stat.color)}>
-                <stat.Icon size={16} color={stat.color} strokeWidth={2} />
+              <span style={s.cardLabel}>{label}</span>
+              <div style={s.cardIconWrap(color)}>
+                <Icon size={16} color={color} strokeWidth={2} />
               </div>
             </div>
-            <div style={s.cardValue}>{typeof stat.value === 'number' ? stat.value.toLocaleString() : stat.value}</div>
-            <div style={s.cardSub}>{stat.sub}</div>
+            <div style={s.cardValue}>
+              {statsLoading ? <span style={s.skeleton} /> : (stats?.[key] ?? 0).toLocaleString()}
+            </div>
+            {key === 'pendingApprovals' && !statsLoading && (
+              <div style={s.cardSub}>{stats?.blockedDevices ?? 0} blocked or quarantined</div>
+            )}
+            {key === 'authEventsLast24h' && !statsLoading && (
+              <div style={s.cardSub}>{stats?.mfaFailuresLast24h ?? 0} MFA failures</div>
+            )}
           </div>
         ))}
       </div>
 
-      {/* Recent events */}
       <div style={s.sectionTitle}>Recent Events</div>
       <div style={s.tableCard}>
         <table style={s.table}>
@@ -205,16 +186,27 @@ export default function Dashboard() {
               <th style={s.th}>Action</th>
               <th style={s.th}>User</th>
               <th style={s.th}>Device</th>
+              <th style={s.th}>IP</th>
               <th style={s.th}>Result</th>
             </tr>
           </thead>
           <tbody>
-            {RECENT_EVENTS.map((ev) => (
+            {recentEvents.length === 0 && (
+              <tr>
+                <td colSpan={6} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  No events yet
+                </td>
+              </tr>
+            )}
+            {recentEvents.map((ev) => (
               <tr key={ev.id}>
-                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px', color: '#64748b' }}>{ev.time}</td>
-                <td style={s.td}>{ev.action}</td>
-                <td style={{ ...s.td, fontWeight: 500 }}>{ev.user}</td>
-                <td style={s.td}>{ev.device}</td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}>
+                  {ev.timestamp}
+                </td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.action}</td>
+                <td style={{ ...s.td, fontWeight: 500 }}>{ev.username || '—'}</td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.deviceId || '—'}</td>
+                <td style={{ ...s.td, fontFamily: 'monospace', fontSize: '12px' }}>{ev.ipAddress || '—'}</td>
                 <td style={s.td}>
                   <span style={s.badge(ev.result)}>{ev.result.toUpperCase()}</span>
                 </td>

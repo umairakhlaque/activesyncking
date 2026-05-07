@@ -1,36 +1,14 @@
-import type { UserStatus, UserSource } from '../api/client';
-
-interface UserRow {
-  id: string;
-  username: string;
-  email: string;
-  status: UserStatus;
-  source: UserSource;
-  mfaEnrolled: boolean;
-  deviceCount: number;
-}
-
-const PLACEHOLDER_USERS: UserRow[] = [
-  { id: '1', username: 'jsmith', email: 'jsmith@corp.example.com', status: 'active', source: 'ldap', mfaEnrolled: true, deviceCount: 2 },
-  { id: '2', username: 'lchen', email: 'lchen@corp.example.com', status: 'active', source: 'ldap', mfaEnrolled: true, deviceCount: 1 },
-  { id: '3', username: 'rgarcia', email: 'rgarcia@corp.example.com', status: 'active', source: 'entra', mfaEnrolled: false, deviceCount: 1 },
-  { id: '4', username: 'bwilson', email: 'bwilson@corp.example.com', status: 'active', source: 'ldap', mfaEnrolled: true, deviceCount: 3 },
-  { id: '5', username: 'tpatel', email: 'tpatel@corp.example.com', status: 'locked', source: 'ldap', mfaEnrolled: true, deviceCount: 1 },
-  { id: '6', username: 'mnovak', email: 'mnovak@corp.example.com', status: 'active', source: 'local', mfaEnrolled: false, deviceCount: 1 },
-  { id: '7', username: 'afoster', email: 'afoster@corp.example.com', status: 'disabled', source: 'ldap', mfaEnrolled: false, deviceCount: 1 },
-  { id: '8', username: 'cdavis', email: 'cdavis@corp.example.com', status: 'active', source: 'entra', mfaEnrolled: true, deviceCount: 2 },
-  { id: '9', username: 'eklein', email: 'eklein@corp.example.com', status: 'active', source: 'ldap', mfaEnrolled: true, deviceCount: 1 },
-  { id: '10', username: 'pwong', email: 'pwong@corp.example.com', status: 'active', source: 'ldap', mfaEnrolled: false, deviceCount: 0 },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { usersApi, type AdminUser, type UserStatus, type UserSource } from '../api/client';
 
 const USER_STATUS_STYLE: Record<UserStatus, React.CSSProperties> = {
-  active: { backgroundColor: '#dcfce7', color: '#166534' },
+  active:   { backgroundColor: '#dcfce7', color: '#166534' },
   disabled: { backgroundColor: '#f1f5f9', color: '#475569' },
-  locked: { backgroundColor: '#fee2e2', color: '#991b1b' },
+  locked:   { backgroundColor: '#fee2e2', color: '#991b1b' },
 };
 
 const SOURCE_STYLE: Record<UserSource, React.CSSProperties> = {
-  ldap: { backgroundColor: '#eff6ff', color: '#1d4ed8' },
+  ldap:  { backgroundColor: '#eff6ff', color: '#1d4ed8' },
   entra: { backgroundColor: '#faf5ff', color: '#6d28d9' },
   local: { backgroundColor: '#f0fdf4', color: '#15803d' },
 };
@@ -44,7 +22,7 @@ const s = {
   } as React.CSSProperties,
 
   pageTitle: { fontSize: '22px', fontWeight: 700, color: '#0f172a' } as React.CSSProperties,
-  pageSub: { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
+  pageSub:   { fontSize: '14px', color: '#64748b', marginTop: '4px' } as React.CSSProperties,
 
   tableCard: {
     backgroundColor: '#fff',
@@ -77,6 +55,7 @@ const s = {
     fontSize: '11px',
     fontWeight: 600,
     textTransform: 'capitalize',
+    cursor: 'default',
     ...style,
   }),
 
@@ -89,15 +68,43 @@ const s = {
     backgroundColor: enrolled ? '#dcfce7' : '#fef3c7',
     color: enrolled ? '#166534' : '#92400e',
   }),
+
+  actionBtn: {
+    padding: '3px 10px',
+    fontSize: '11px',
+    fontWeight: 600,
+    border: '1px solid #e2e8f0',
+    borderRadius: '5px',
+    cursor: 'pointer',
+    backgroundColor: '#f8fafc',
+    color: '#475569',
+    marginRight: '4px',
+  } as React.CSSProperties,
 };
 
 export default function Users() {
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery({
+    queryKey: ['users'],
+    queryFn: () => usersApi.list(1, 100),
+  });
+
+  const users: AdminUser[] = data?.items ?? [];
+
+  const handleStatus = async (user: AdminUser, status: UserStatus) => {
+    await usersApi.setStatus(user.id, status);
+    qc.invalidateQueries({ queryKey: ['users'] });
+  };
+
   return (
     <div>
       <div style={s.header}>
         <div>
           <div style={s.pageTitle}>Users</div>
-          <div style={s.pageSub}>{PLACEHOLDER_USERS.length} users synced from directory</div>
+          <div style={s.pageSub}>
+            {isLoading ? 'Loading…' : `${data?.total ?? 0} users synced from directory`}
+          </div>
         </div>
       </div>
 
@@ -111,10 +118,25 @@ export default function Users() {
               <th style={s.th}>Source</th>
               <th style={s.th}>MFA Enrolled</th>
               <th style={s.th}>Devices</th>
+              <th style={s.th}>Actions</th>
             </tr>
           </thead>
           <tbody>
-            {PLACEHOLDER_USERS.map((user) => (
+            {isLoading && (
+              <tr>
+                <td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!isLoading && users.length === 0 && (
+              <tr>
+                <td colSpan={7} style={{ ...s.td, textAlign: 'center', color: '#94a3b8', padding: '32px' }}>
+                  No users found
+                </td>
+              </tr>
+            )}
+            {users.map((user) => (
               <tr key={user.id}>
                 <td style={{ ...s.td, fontWeight: 600 }}>{user.username}</td>
                 <td style={{ ...s.td, color: '#64748b' }}>{user.email}</td>
@@ -130,6 +152,14 @@ export default function Users() {
                   </span>
                 </td>
                 <td style={{ ...s.td, textAlign: 'center' }}>{user.deviceCount}</td>
+                <td style={s.td}>
+                  {user.status !== 'active' && (
+                    <button style={s.actionBtn} onClick={() => handleStatus(user, 'active')}>Enable</button>
+                  )}
+                  {user.status === 'active' && (
+                    <button style={s.actionBtn} onClick={() => handleStatus(user, 'disabled')}>Disable</button>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

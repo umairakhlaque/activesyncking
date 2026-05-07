@@ -32,6 +32,10 @@ name: Deploy
 #
 #   SYNCGUARD_ENCRYPTION_KEY
 #     Generate: openssl rand -hex 32
+#
+#   SYNCGUARD_ADMIN_API_KEY
+#     Generate: openssl rand -base64 32
+#     Used as the bearer token for the admin portal login
 # ──────────────────────────────────────────────────────────────────────────────
 
 on:
@@ -173,6 +177,7 @@ jobs:
             SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
             SYNCGUARD_ADMIN_LISTEN=":8090" \
             SYNCGUARD_ADMIN_CORS_ORIGINS="https://admin.noem.tech" \
+            SYNCGUARD_ADMIN_API_KEY="${{ secrets.SYNCGUARD_ADMIN_API_KEY }}" \
             --app ${{ env.FLY_APP }} --stage
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
