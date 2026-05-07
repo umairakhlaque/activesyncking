@@ -14,8 +14,6 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/umairakhlaque/activesyncking/internal/config"
-	"github.com/umairakhlaque/activesyncking/internal/store"
 )
 
 const migrationsDir = "/migrations"
@@ -23,21 +21,49 @@ const migrationsDir = "/migrations"
 func main() {
 	slog.Info("SyncGuard migration runner starting")
 
-	cfg, err := config.Load("")
-	if err != nil {
-		slog.Error("failed to load config", "err", err)
-		os.Exit(1)
+	// Read only what we need: the database URL. We intentionally do not use
+	// config.Load() here because that path requires auth secrets (JWT, encryption
+	// key) that are irrelevant to schema migrations.
+	dbURL := os.Getenv("SYNCGUARD_DB_DATABASE_URL")
+	if dbURL == "" {
+		// Fallback: build DSN from individual components
+		host := envOr("SYNCGUARD_DB_HOST", "localhost")
+		port := envOr("SYNCGUARD_DB_PORT", "5432")
+		name := envOr("SYNCGUARD_DB_NAME", "syncguard")
+		user := envOr("SYNCGUARD_DB_USER", "syncguard")
+		pass := envOr("SYNCGUARD_DB_PASSWORD", "")
+		ssl := envOr("SYNCGUARD_DB_SSLMODE", "disable")
+		dbURL = fmt.Sprintf("host=%s port=%s dbname=%s user=%s password=%s sslmode=%s",
+			host, port, name, user, pass, ssl)
+	} else {
+		// Append pool sizing to the URL
+		sep := "?"
+		if strings.Contains(dbURL, "?") {
+			sep = "&"
+		}
+		dbURL = dbURL + sep + "pool_max_conns=2&pool_min_conns=1"
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	pool, err := store.Open(ctx, cfg.DB)
+	cfg, err := pgxpool.ParseConfig(dbURL)
+	if err != nil {
+		slog.Error("invalid database URL", "err", err)
+		os.Exit(1)
+	}
+
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		slog.Error("failed to connect to database", "err", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	if err := pool.Ping(ctx); err != nil {
+		slog.Error("database ping failed", "err", err)
+		os.Exit(1)
+	}
 
 	if err := ensureMigrationsTable(ctx, pool); err != nil {
 		slog.Error("failed to create migrations table", "err", err)
@@ -70,6 +96,13 @@ func main() {
 	}
 
 	slog.Info("all migrations applied successfully", "count", len(files))
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func ensureMigrationsTable(ctx context.Context, pool *pgxpool.Pool) error {
