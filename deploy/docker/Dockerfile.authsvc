@@ -12,5 +12,7 @@ RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /bin/authsvc  /authsvc
 COPY --from=builder /bin/migrate  /migrate
 COPY migrations/                  /migrations/
+COPY deploy/docker/entrypoint-authsvc.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 EXPOSE 8080
-CMD ["/authsvc"]
+ENTRYPOINT ["/entrypoint.sh"]
