@@ -125,22 +125,25 @@ func applyMigration(ctx context.Context, pool *pgxpool.Pool, path string) error 
 		return fmt.Errorf("reading %s: %w", path, err)
 	}
 
-	tx, err := pool.Begin(ctx)
+	conn, err := pool.Acquire(ctx)
 	if err != nil {
-		return fmt.Errorf("beginning transaction: %w", err)
+		return fmt.Errorf("acquiring connection: %w", err)
 	}
-	defer tx.Rollback(ctx)
+	defer conn.Release()
 
-	if _, err := tx.Exec(ctx, string(sql)); err != nil {
-		return fmt.Errorf("executing migration: %w", err)
+	// Use the simple query protocol so multi-statement SQL files with their
+	// own BEGIN/COMMIT are executed correctly in a single round-trip.
+	mrr := conn.Conn().PgConn().Exec(ctx, string(sql))
+	if err := mrr.Close(); err != nil {
+		return fmt.Errorf("executing migration %s: %w", filepath.Base(path), err)
 	}
 
-	if _, err := tx.Exec(ctx,
+	if _, err := conn.Exec(ctx,
 		`INSERT INTO schema_migrations (filename) VALUES ($1)`,
 		filepath.Base(path),
 	); err != nil {
-		return fmt.Errorf("recording migration: %w", err)
+		return fmt.Errorf("recording migration %s: %w", filepath.Base(path), err)
 	}
 
-	return tx.Commit(ctx)
+	return nil
 }
