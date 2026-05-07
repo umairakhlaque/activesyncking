@@ -48,9 +48,16 @@ func run(cfg *config.Config, log *zap.Logger) error {
 		return fmt.Errorf("creating gateway: %w", err)
 	}
 
+	mux := http.NewServeMux()
+	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"status":"ok"}`))
+	})
+	mux.Handle("/", gw)
+
 	srv := &http.Server{
 		Addr:         cfg.Gateway.Listen,
-		Handler:      gw,
+		Handler:      mux,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 120 * time.Second, // EAS sync can be long-lived
 		IdleTimeout:  90 * time.Second,

@@ -33,10 +33,6 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load config", zap.Error(err))
 	}
-	if err := cfg.ValidateAuth(); err != nil {
-		log.Fatal("config validation failed", zap.Error(err))
-	}
-
 	if cfg.Admin.APIKey == "" {
 		log.Fatal("admin.api_key must not be empty — set SYNCGUARD_ADMIN_API_KEY")
 	}
