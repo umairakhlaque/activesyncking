@@ -13,4 +13,4 @@ COPY --from=builder /bin/authsvc  /authsvc
 COPY --from=builder /bin/migrate  /migrate
 COPY migrations/                  /migrations/
 EXPOSE 8080
-ENTRYPOINT ["/authsvc"]
+CMD ["/authsvc"]

@@ -10,4 +10,4 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /bin/adminsvc /adminsvc
 EXPOSE 8090
-ENTRYPOINT ["/adminsvc"]
+CMD ["/adminsvc"]

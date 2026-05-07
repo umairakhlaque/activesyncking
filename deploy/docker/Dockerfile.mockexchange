@@ -10,4 +10,4 @@ FROM alpine:3.21
 RUN apk add --no-cache ca-certificates tzdata
 COPY --from=builder /bin/mockexchange /mockexchange
 EXPOSE 8080
-ENTRYPOINT ["/mockexchange"]
+CMD ["/mockexchange"]
