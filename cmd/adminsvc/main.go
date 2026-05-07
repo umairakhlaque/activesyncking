@@ -46,7 +46,9 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := store.Open(ctx, cfg.DB)
+	// Use lazy open so the service starts even when Neon is in cold-start.
+	// The first DB-backed request may be slow while the connection warms up.
+	pool, err := store.OpenLazy(ctx, cfg.DB)
 	if err != nil {
 		return fmt.Errorf("opening database: %w", err)
 	}
