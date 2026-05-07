@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { ShieldCheck } from 'lucide-react';
-import axios from 'axios';
+import { apiClient } from '../api/client';
 
 const s = {
   page: {
@@ -118,7 +118,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await axios.post<{ token: string }>('/v1/auth/login', { password });
+      const res = await apiClient.post<{ token: string }>('/v1/auth/login', { password });
       localStorage.setItem('sg_admin_token', res.data.token);
       window.location.href = '/dashboard';
     } catch {
