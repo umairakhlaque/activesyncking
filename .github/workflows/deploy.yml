@@ -111,7 +111,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
       - name: Deploy (runs /migrate as release_command before traffic shifts)
-        run: flyctl deploy --config fly.authsvc.toml --remote-only --wait-timeout 300
+        run: flyctl deploy --config fly.authsvc.toml --remote-only --wait-timeout 300 --build-arg COMMIT_SHA=${{ github.sha }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 

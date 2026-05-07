@@ -169,10 +169,6 @@ func Load(cfgFile string) (*Config, error) {
 		return nil, fmt.Errorf("unmarshalling config: %w", err)
 	}
 
-	if err := cfg.validate(); err != nil {
-		return nil, fmt.Errorf("config validation: %w", err)
-	}
-
 	return &cfg, nil
 }
 
@@ -191,5 +187,3 @@ func (c *Config) ValidateAuth() error {
 	}
 	return nil
 }
-
-func (c *Config) validate() error { return nil }
