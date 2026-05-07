@@ -217,28 +217,28 @@ jobs:
         run: |
           mkdir -p .vercel/output/static
           cp -r dist/. .vercel/output/static/
-          python3 -c "
-import json, sys
-cfg = {
-  'version': 3,
-  'routes': [
-    {'src': '/assets/(.*)', 'headers': {'Cache-Control': 'public, max-age=31536000, immutable'}, 'continue': True},
-    {'handle': 'filesystem'},
-    {'src': '/(.*)', 'dest': '/index.html'}
-  ]
-}
-open('.vercel/output/config.json', 'w').write(json.dumps(cfg, indent=2))
-"
-          cat .vercel/output/config.json
 
-      - name: Deploy to Vercel (prebuilt)
+          # Project link — tells the CLI which Vercel project to deploy to
+          printf '{"orgId":"%s","projectId":"%s"}' \
+            "$VERCEL_ORG_ID" "$VERCEL_PROJECT_ID" \
+            > .vercel/project.json
+
+          # Routing: serve real files first, fall back to index.html for SPA routes
+          printf '%s' '{"version":3,"routes":[{"handle":"filesystem"},{"src":"/(.*)","dest":"/index.html"}]}' \
+            > .vercel/output/config.json
+
+          echo "project.json:"; cat .vercel/project.json
+          echo "config.json:";  cat .vercel/output/config.json
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (prebuilt, production)
         working-directory: web/admin
         run: |
-          DEPLOY_URL=$(npx vercel deploy --prebuilt \
+          DEPLOY_URL=$(npx vercel deploy --prebuilt --prod \
             --token=${{ secrets.VERCEL_TOKEN }} \
-            --yes \
-            ${{ github.ref == 'refs/heads/main' && '--prod' || '' }})
-          echo "VERCEL_DEPLOY_URL=$DEPLOY_URL" >> $GITHUB_ENV
+            --yes)
           echo "Deployed to: $DEPLOY_URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
