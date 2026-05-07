@@ -106,7 +106,7 @@ jobs:
             SYNCGUARD_AUTH_JWT_SECRET="${{ secrets.SYNCGUARD_JWT_SECRET }}" \
             SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
             SYNCGUARD_AUTH_LISTEN=":8080" \
-            --app ${{ env.FLY_APP }} --stage
+            --app ${{ env.FLY_APP }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -140,7 +140,7 @@ jobs:
             SYNCGUARD_GATEWAY_EXCHANGE_URL="https://syncguard-mockexchange.fly.dev" \
             SYNCGUARD_GATEWAY_AUTH_SERVICE_URL="https://syncguard-authsvc.fly.dev" \
             SYNCGUARD_GATEWAY_FAIL_CLOSED="true" \
-            --app ${{ env.FLY_APP }} --stage
+            --app ${{ env.FLY_APP }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
@@ -178,7 +178,7 @@ jobs:
             SYNCGUARD_ADMIN_LISTEN=":8090" \
             SYNCGUARD_ADMIN_CORS_ORIGINS="*" \
             SYNCGUARD_ADMIN_API_KEY="${{ secrets.SYNCGUARD_ADMIN_API_KEY }}" \
-            --app ${{ env.FLY_APP }} --stage
+            --app ${{ env.FLY_APP }}
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
