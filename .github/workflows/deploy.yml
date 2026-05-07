@@ -176,7 +176,7 @@ jobs:
             SYNCGUARD_AUTH_JWT_SECRET="${{ secrets.SYNCGUARD_JWT_SECRET }}" \
             SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
             SYNCGUARD_ADMIN_LISTEN=":8090" \
-            SYNCGUARD_ADMIN_CORS_ORIGINS="https://admin.noem.tech" \
+            SYNCGUARD_ADMIN_CORS_ORIGINS="*" \
             SYNCGUARD_ADMIN_API_KEY="${{ secrets.SYNCGUARD_ADMIN_API_KEY }}" \
             --app ${{ env.FLY_APP }} --stage
         env:
@@ -210,15 +210,17 @@ jobs:
         working-directory: web/admin
         run: npm run build
         env:
-          VITE_API_BASE_URL: https://api.noem.tech
+          VITE_API_BASE_URL: https://syncguard-adminsvc.fly.dev
 
       - name: Deploy to Vercel
         working-directory: web/admin
         run: |
-          npx vercel deploy dist/ \
+          DEPLOY_URL=$(npx vercel deploy dist/ \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --yes \
-            ${{ github.ref == 'refs/heads/main' && '--prod' || '' }}
+            ${{ github.ref == 'refs/heads/main' && '--prod' || '' }})
+          echo "VERCEL_DEPLOY_URL=$DEPLOY_URL" >> $GITHUB_ENV
+          echo "Deployed to: $DEPLOY_URL"
         env:
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
@@ -239,7 +241,8 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "  SyncGuard MFA — Deployment complete"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "  Admin Portal : https://admin.noem.tech"
+          echo "  Admin Portal : https://admin.noem.tech  (CNAME → cname.vercel-dns.com once DNS is set)"
+          echo "  Admin API    : https://syncguard-adminsvc.fly.dev"
           echo "  Auth API     : https://syncguard-authsvc.fly.dev"
           echo "  EAS Gateway  : https://syncguard-gateway.fly.dev"
           echo "  Mock Exchange: https://syncguard-mockexchange.fly.dev"
