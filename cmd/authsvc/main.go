@@ -38,6 +38,9 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load config", zap.Error(err))
 	}
+	if err := cfg.ValidateAuth(); err != nil {
+		log.Fatal("config validation failed", zap.Error(err))
+	}
 
 	if err := run(cfg, log); err != nil {
 		log.Fatal("fatal error", zap.Error(err))

@@ -176,7 +176,10 @@ func Load(cfgFile string) (*Config, error) {
 	return &cfg, nil
 }
 
-func (c *Config) validate() error {
+// ValidateAuth checks that fields required by the auth and crypto subsystems
+// are present. Call this in binaries that use JWT or encryption (authsvc,
+// adminsvc) but NOT in utilities like the migration runner.
+func (c *Config) ValidateAuth() error {
 	if c.Auth.JWTSecret == "" {
 		return fmt.Errorf("auth.jwt_secret must not be empty")
 	}
@@ -188,3 +191,5 @@ func (c *Config) validate() error {
 	}
 	return nil
 }
+
+func (c *Config) validate() error { return nil }

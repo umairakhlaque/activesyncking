@@ -212,10 +212,35 @@ jobs:
         env:
           VITE_API_BASE_URL: https://syncguard-adminsvc.fly.dev
 
-      - name: Deploy to Vercel
+      - name: Prepare Vercel Build Output
         working-directory: web/admin
         run: |
-          DEPLOY_URL=$(npx vercel deploy dist/ \
+          mkdir -p .vercel/output/static
+          cp -r dist/. .vercel/output/static/
+          cat > .vercel/output/config.json << 'EOF'
+          {
+            "version": 3,
+            "routes": [
+              {
+                "src": "/assets/(.*)",
+                "headers": { "Cache-Control": "public, max-age=31536000, immutable" },
+                "continue": true
+              },
+              {
+                "handle": "filesystem"
+              },
+              {
+                "src": "/(.*)",
+                "dest": "/index.html"
+              }
+            ]
+          }
+          EOF
+
+      - name: Deploy to Vercel (prebuilt)
+        working-directory: web/admin
+        run: |
+          DEPLOY_URL=$(npx vercel deploy --prebuilt \
             --token=${{ secrets.VERCEL_TOKEN }} \
             --yes \
             ${{ github.ref == 'refs/heads/main' && '--prod' || '' }})
