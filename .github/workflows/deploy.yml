@@ -167,17 +167,31 @@ jobs:
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
 
+      - name: Validate secrets
+        run: |
+          echo "NEON_DATABASE_URL length:      ${#NEON_DATABASE_URL}"
+          echo "SYNCGUARD_ADMIN_API_KEY length: ${#SYNCGUARD_ADMIN_API_KEY}"
+          if [ -z "$SYNCGUARD_ADMIN_API_KEY" ]; then
+            echo "ERROR: SYNCGUARD_ADMIN_API_KEY is empty — add it in GitHub → Settings → Secrets → Actions"
+            exit 1
+          fi
+        env:
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SYNCGUARD_ADMIN_API_KEY: ${{ secrets.SYNCGUARD_ADMIN_API_KEY }}
+
       - name: Set secrets
         run: |
           flyctl secrets set \
-            SYNCGUARD_DB_DATABASE_URL="${{ secrets.NEON_DATABASE_URL }}" \
+            SYNCGUARD_DB_DATABASE_URL="$NEON_DATABASE_URL" \
             SYNCGUARD_DB_SSLMODE="require" \
             SYNCGUARD_ADMIN_LISTEN=":8090" \
             SYNCGUARD_ADMIN_CORS_ORIGINS="*" \
-            SYNCGUARD_ADMIN_API_KEY="${{ secrets.SYNCGUARD_ADMIN_API_KEY }}" \
-            --app ${{ env.FLY_APP }}
+            SYNCGUARD_ADMIN_API_KEY="$SYNCGUARD_ADMIN_API_KEY" \
+            --app "$FLY_APP"
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          SYNCGUARD_ADMIN_API_KEY: ${{ secrets.SYNCGUARD_ADMIN_API_KEY }}
 
       - name: Deploy
         run: flyctl deploy --config fly.adminsvc.toml --remote-only --wait-timeout 300
