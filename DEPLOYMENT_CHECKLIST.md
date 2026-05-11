@@ -42,3 +42,4 @@ If anything fails:
 - Check Fly.io → Apps → `syncguard-adminsvc` → Logs
 - Check Vercel → Project → Deployments → Production → Logs
 - Open browser DevTools → Network → try login → check response body
+# CI force-redeploy marker: Mon May 11 13:57:18 UTC 2026
