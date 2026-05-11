@@ -165,22 +165,7 @@ export default function Users() {
     setCreateLoading(true);
     setCreateMessage(null);
     try {
-      const res = await fetch('/v1/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('sg_admin_token') || ''}`,
-        },
-        body: JSON.stringify({
-          username: formData.username,
-          email: formData.email,
-          displayName: formData.displayName,
-          password: formData.password,
-        }),
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      await usersApi.create(formData.username, formData.email, formData.displayName, formData.password);
       setCreateMessage({ type: 'success', text: `User "${formData.username}" created successfully` });
       setFormData({ username: '', email: '', displayName: '', password: '' });
       qc.invalidateQueries({ queryKey: ['users'] });
