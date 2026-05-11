@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 
 	"github.com/umairakhlaque/activesyncking/internal/store"
 	"github.com/umairakhlaque/activesyncking/pkg/models"
@@ -206,6 +207,44 @@ func (h *Handler) UpdateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	u, _ := h.userStore.GetByID(r.Context(), id)
 	writeJSON(w, http.StatusOK, u)
+}
+
+func (h *Handler) CreateUser(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Username    string `json:"username"`
+		Email       string `json:"email"`
+		DisplayName string `json:"displayName"`
+		Password    string `json:"password"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	if body.Username == "" || body.Email == "" || body.Password == "" {
+		writeErr(w, http.StatusBadRequest, "username, email, and password are required")
+		return
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		h.log.Error("hashing password", zap.Error(err))
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	user := &models.User{
+		ID:           uuid.New(),
+		Username:     body.Username,
+		Email:        body.Email,
+		DisplayName:  body.DisplayName,
+		Status:       models.UserStatusActive,
+		Source:       models.UserSourceLocal,
+		PasswordHash: string(hash),
+	}
+	if err := h.userStore.Create(r.Context(), user); err != nil {
+		h.log.Error("create user", zap.Error(err))
+		writeErr(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+	writeJSON(w, http.StatusCreated, user)
 }
 
 func (h *Handler) ListDevices(w http.ResponseWriter, r *http.Request) {

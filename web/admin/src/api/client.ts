@@ -180,6 +180,9 @@ export const usersApi = {
 
   setStatus: (id: string, status: UserStatus): Promise<AdminUser> =>
     apiClient.patch<AdminUser>(`/v1/users/${id}`, { status }).then(unwrap),
+
+  create: (username: string, email: string, displayName: string, password: string): Promise<AdminUser> =>
+    apiClient.post<AdminUser>('/v1/admin/users', { username, email, displayName, password }).then(unwrap),
 };
 
 export const auditApi = {

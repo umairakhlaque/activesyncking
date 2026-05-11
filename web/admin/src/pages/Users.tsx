@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { usersApi, type AdminUser, type UserStatus, type UserSource } from '../api/client';
 
@@ -80,10 +81,72 @@ const s = {
     color: '#475569',
     marginRight: '4px',
   } as React.CSSProperties,
+
+  createUserCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+    padding: '16px',
+    marginBottom: '20px',
+  } as React.CSSProperties,
+
+  createUserTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#0f172a',
+    marginBottom: '12px',
+  } as React.CSSProperties,
+
+  formGroup: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
+    gap: '10px',
+    alignItems: 'flex-end',
+  } as React.CSSProperties,
+
+  formInput: {
+    padding: '8px 10px',
+    fontSize: '13px',
+    border: '1px solid #e2e8f0',
+    borderRadius: '5px',
+    fontFamily: 'system-ui, sans-serif',
+  } as React.CSSProperties,
+
+  formLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#475569',
+    textTransform: 'uppercase',
+    marginBottom: '4px',
+    display: 'block',
+  } as React.CSSProperties,
+
+  createBtn: {
+    padding: '8px 14px',
+    fontSize: '12px',
+    fontWeight: 600,
+    backgroundColor: '#10b981',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '5px',
+    cursor: 'pointer',
+  } as React.CSSProperties,
+
+  message: (type: 'success' | 'error'): React.CSSProperties => ({
+    padding: '8px 12px',
+    borderRadius: '5px',
+    fontSize: '12px',
+    marginTop: '8px',
+    backgroundColor: type === 'success' ? '#dcfce7' : '#fee2e2',
+    color: type === 'success' ? '#166534' : '#991b1b',
+  }),
 };
 
 export default function Users() {
   const qc = useQueryClient();
+  const [formData, setFormData] = useState({ username: '', email: '', displayName: '', password: '' });
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createMessage, setCreateMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['users'],
@@ -97,15 +160,99 @@ export default function Users() {
     qc.invalidateQueries({ queryKey: ['users'] });
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreateLoading(true);
+    setCreateMessage(null);
+    try {
+      const res = await fetch('/v1/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('sg_admin_token') || ''}`,
+        },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          displayName: formData.displayName,
+          password: formData.password,
+        }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      setCreateMessage({ type: 'success', text: `User "${formData.username}" created successfully` });
+      setFormData({ username: '', email: '', displayName: '', password: '' });
+      qc.invalidateQueries({ queryKey: ['users'] });
+    } catch (err) {
+      setCreateMessage({ type: 'error', text: `Failed to create user: ${err instanceof Error ? err.message : 'unknown error'}` });
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
   return (
     <div>
       <div style={s.header}>
         <div>
           <div style={s.pageTitle}>Users</div>
           <div style={s.pageSub}>
-            {isLoading ? 'Loading…' : `${data?.total ?? 0} users synced from directory`}
+            {isLoading ? 'Loading…' : `${data?.total ?? 0} users`}
           </div>
         </div>
+      </div>
+
+      <div style={s.createUserCard}>
+        <div style={s.createUserTitle}>Create Test User</div>
+        <form onSubmit={handleCreateUser} style={s.formGroup}>
+          <div>
+            <label style={s.formLabel}>Username</label>
+            <input
+              style={s.formInput}
+              type="text"
+              placeholder="username"
+              value={formData.username}
+              onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label style={s.formLabel}>Email</label>
+            <input
+              style={s.formInput}
+              type="email"
+              placeholder="user@example.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+              required
+            />
+          </div>
+          <div>
+            <label style={s.formLabel}>Display Name</label>
+            <input
+              style={s.formInput}
+              type="text"
+              placeholder="John Doe"
+              value={formData.displayName}
+              onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+            />
+          </div>
+          <div>
+            <label style={s.formLabel}>Password</label>
+            <input
+              style={s.formInput}
+              type="password"
+              placeholder="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              required
+            />
+          </div>
+          <button type="submit" style={s.createBtn} disabled={createLoading}>
+            {createLoading ? 'Creating…' : 'Create'}
+          </button>
+        </form>
+        {createMessage && <div style={s.message(createMessage.type)}>{createMessage.text}</div>}
       </div>
 
       <div style={s.tableCard}>

@@ -23,6 +23,7 @@ func NewRouter(h *Handler, apiKey string, corsOrigins []string) http.Handler {
 		r.Use(apiKeyAuth(apiKey))
 		r.Get("/v1/dashboard/stats", h.DashboardStats)
 		r.Get("/v1/users", h.ListUsers)
+		r.Post("/v1/admin/users", h.CreateUser)
 		r.Get("/v1/users/{id}", h.GetUser)
 		r.Patch("/v1/users/{id}", h.UpdateUser)
 		r.Get("/v1/devices", h.ListDevices)
