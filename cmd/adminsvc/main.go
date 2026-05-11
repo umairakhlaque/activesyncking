@@ -33,8 +33,16 @@ func main() {
 	if err != nil {
 		log.Fatal("failed to load config", zap.Error(err))
 	}
+
+	// Log startup state so Fly.io log tail can confirm what's configured.
+	log.Info("config loaded",
+		zap.String("listen", cfg.Admin.Listen),
+		zap.Bool("api_key_set", cfg.Admin.APIKey != ""),
+		zap.Bool("db_url_set", cfg.DB.DatabaseURL != ""),
+	)
+
 	if cfg.Admin.APIKey == "" {
-		log.Fatal("admin.api_key must not be empty — set SYNCGUARD_ADMIN_API_KEY")
+		log.Warn("SYNCGUARD_ADMIN_API_KEY is not set — login will always return 401")
 	}
 
 	if err := run(cfg, log); err != nil {

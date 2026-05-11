@@ -4,6 +4,12 @@ primary_region = "lhr"
 [build]
   dockerfile = "deploy/docker/Dockerfile.adminsvc"
 
+[env]
+  SYNCGUARD_ADMIN_LISTEN       = ":8090"
+  SYNCGUARD_ADMIN_CORS_ORIGINS = "*"
+  SYNCGUARD_DB_SSLMODE         = "require"
+  SYNCGUARD_DB_MIN_CONNS       = "0"
+
 [http_service]
   internal_port        = 8090
   force_https          = true
@@ -13,11 +19,11 @@ primary_region = "lhr"
 
 [[vm]]
   size   = "shared-cpu-1x"
-  memory = "256mb"
+  memory = "512mb"
 
 [[http_service.checks]]
   interval     = "15s"
   timeout      = "5s"
-  grace_period = "30s"
+  grace_period = "60s"
   method       = "GET"
   path         = "/healthz"

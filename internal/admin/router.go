@@ -41,7 +41,7 @@ func apiKeyAuth(apiKey string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-			if subtle.ConstantTimeCompare([]byte(token), key) != 1 {
+			if len(key) == 0 || len(token) == 0 || subtle.ConstantTimeCompare([]byte(token), key) != 1 {
 				w.Header().Set("Content-Type", "application/json")
 				http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
 				return

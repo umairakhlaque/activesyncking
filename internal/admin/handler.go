@@ -105,7 +105,8 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(body.Password), []byte(h.apiKey)) != 1 {
+	if h.apiKey == "" || body.Password == "" ||
+		subtle.ConstantTimeCompare([]byte(body.Password), []byte(h.apiKey)) != 1 {
 		writeErr(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}

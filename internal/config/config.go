@@ -127,7 +127,7 @@ func Load(cfgFile string) (*Config, error) {
 	v.SetDefault("db.password", "changeme")
 	v.SetDefault("db.sslmode", "disable")
 	v.SetDefault("db.max_conns", 20)
-	v.SetDefault("db.min_conns", 2)
+	v.SetDefault("db.min_conns", 0)
 
 	v.SetDefault("redis.addr", "localhost:6379")
 	v.SetDefault("redis.db", 0)
