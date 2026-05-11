@@ -88,10 +88,12 @@ func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
 	if h.adminStore == nil || h.adminStore.pool == nil {
 		dbStatus = "unavailable"
 	}
-	writeJSON(w, http.StatusOK, map[string]string{
-		"status":  "ok",
-		"service": "adminsvc",
-		"db":      dbStatus,
+	apiKeyLen := len(h.apiKey)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"status":      "ok",
+		"service":     "adminsvc",
+		"db":          dbStatus,
+		"api_key_len": apiKeyLen,
 	})
 }
 
