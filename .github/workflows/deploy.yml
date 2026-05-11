@@ -152,7 +152,7 @@ jobs:
   # ── Deploy: Admin Service ────────────────────────────────────────────────────
   deploy-adminsvc:
     name: Deploy adminsvc → Fly.io
-    needs: [ci-gate, deploy-authsvc]
+    needs: ci-gate          # Independent — does not need authsvc or migrations
     runs-on: ubuntu-latest
     env:
       FLY_APP: syncguard-adminsvc
@@ -172,9 +172,6 @@ jobs:
           flyctl secrets set \
             SYNCGUARD_DB_DATABASE_URL="${{ secrets.NEON_DATABASE_URL }}" \
             SYNCGUARD_DB_SSLMODE="require" \
-            SYNCGUARD_REDIS_URL="${{ secrets.UPSTASH_REDIS_URL }}" \
-            SYNCGUARD_AUTH_JWT_SECRET="${{ secrets.SYNCGUARD_JWT_SECRET }}" \
-            SYNCGUARD_ENCRYPTION_KEY="${{ secrets.SYNCGUARD_ENCRYPTION_KEY }}" \
             SYNCGUARD_ADMIN_LISTEN=":8090" \
             SYNCGUARD_ADMIN_CORS_ORIGINS="*" \
             SYNCGUARD_ADMIN_API_KEY="${{ secrets.SYNCGUARD_ADMIN_API_KEY }}" \

@@ -84,7 +84,15 @@ func normDeviceStatus(s models.DeviceStatus) string {
 // ── handlers ─────────────────────────────────────────────────────────────────
 
 func (h *Handler) Healthz(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "service": "adminsvc"})
+	dbStatus := "connected"
+	if h.adminStore == nil || h.adminStore.pool == nil {
+		dbStatus = "unavailable"
+	}
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"service": "adminsvc",
+		"db":      dbStatus,
+	})
 }
 
 // Login accepts {"password":"<api_key>"} and echoes back {"token":"<api_key>"} on success.

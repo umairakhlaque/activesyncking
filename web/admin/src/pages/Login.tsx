@@ -121,8 +121,17 @@ export default function Login() {
       const res = await apiClient.post<{ token: string }>('/v1/auth/login', { password });
       localStorage.setItem('sg_admin_token', res.data.token);
       window.location.href = '/dashboard';
-    } catch {
-      setError('Invalid admin password. Please try again.');
+    } catch (err: unknown) {
+      if (err && typeof err === 'object' && 'response' in err) {
+        const status = (err as { response: { status: number } }).response.status;
+        if (status === 401) {
+          setError('Incorrect password. Check your SYNCGUARD_ADMIN_API_KEY value.');
+        } else {
+          setError(`Server error (HTTP ${status}). The admin service may be starting up — wait 30s and try again.`);
+        }
+      } else {
+        setError('Cannot reach the admin service (network error). Check https://syncguard-adminsvc.fly.dev/healthz');
+      }
     } finally {
       setLoading(false);
     }
