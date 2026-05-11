@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 
 	"github.com/umairakhlaque/activesyncking/internal/admin"
@@ -46,13 +46,18 @@ func run(cfg *config.Config, log *zap.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// Use lazy open so the service starts even when Neon is in cold-start.
-	// The first DB-backed request may be slow while the connection warms up.
+	// Attempt DB connection but never crash if it fails — /healthz and login
+	// don't need the database. Data endpoints return 503 until DB is available.
+	var pool *pgxpool.Pool
 	pool, err := store.OpenLazy(ctx, cfg.DB)
 	if err != nil {
-		return fmt.Errorf("opening database: %w", err)
+		log.Warn("database unavailable at startup — data endpoints will return 503",
+			zap.Error(err))
+		pool = nil
 	}
-	defer pool.Close()
+	if pool != nil {
+		defer pool.Close()
+	}
 
 	adminStore := admin.NewStore(pool)
 	deviceStore := store.NewDeviceStore(pool)
@@ -79,7 +84,7 @@ func run(cfg *config.Config, log *zap.Logger) error {
 
 	select {
 	case err := <-errCh:
-		return fmt.Errorf("server error: %w", err)
+		return err
 	case <-ctx.Done():
 		log.Info("shutting down admin service")
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

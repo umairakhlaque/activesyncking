@@ -12,6 +12,8 @@ import (
 	"github.com/umairakhlaque/activesyncking/pkg/models"
 )
 
+var errNoPool = errors.New("database unavailable")
+
 type DeviceStore struct {
 	pool *pgxpool.Pool
 }
@@ -45,6 +47,9 @@ func (s *DeviceStore) GetByEASIDAndUser(ctx context.Context, easID string, userI
 }
 
 func (s *DeviceStore) GetByID(ctx context.Context, id uuid.UUID) (*models.Device, error) {
+	if s.pool == nil {
+		return nil, errNoPool
+	}
 	const q = `
 		SELECT id, device_eas_id, user_id, device_type, device_model, user_agent,
 		       last_ip, status, trust_token, trusted_at, trust_expiry,
@@ -93,6 +98,9 @@ func (s *DeviceStore) Upsert(ctx context.Context, d *models.Device) error {
 }
 
 func (s *DeviceStore) Approve(ctx context.Context, id uuid.UUID, trustToken string, expiry time.Time) error {
+	if s.pool == nil {
+		return errNoPool
+	}
 	const q = `
 		UPDATE devices
 		SET status       = 'approved',
@@ -112,6 +120,9 @@ func (s *DeviceStore) SetPending(ctx context.Context, id uuid.UUID) error {
 }
 
 func (s *DeviceStore) Block(ctx context.Context, id uuid.UUID, reason string) error {
+	if s.pool == nil {
+		return errNoPool
+	}
 	const q = `
 		UPDATE devices
 		SET status       = 'blocked',
@@ -124,6 +135,9 @@ func (s *DeviceStore) Block(ctx context.Context, id uuid.UUID, reason string) er
 }
 
 func (s *DeviceStore) Quarantine(ctx context.Context, id uuid.UUID, reason string) error {
+	if s.pool == nil {
+		return errNoPool
+	}
 	const q = `
 		UPDATE devices
 		SET status       = 'quarantine',

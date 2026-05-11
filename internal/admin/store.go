@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -9,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/umairakhlaque/activesyncking/pkg/models"
 )
+
+var errNoPool = errors.New("database unavailable")
 
 // Store holds admin-specific read/write queries that span multiple tables.
 type Store struct {
@@ -31,6 +34,9 @@ type DashboardStats struct {
 }
 
 func (s *Store) GetDashboardStats(ctx context.Context) (*DashboardStats, error) {
+	if s.pool == nil {
+		return nil, errNoPool
+	}
 	const q = `
 		SELECT
 			(SELECT COUNT(*) FROM users)::int,
@@ -63,6 +69,9 @@ type UserRow struct {
 }
 
 func (s *Store) ListUsers(ctx context.Context, page, pageSize int) ([]*UserRow, int, error) {
+	if s.pool == nil {
+		return nil, 0, errNoPool
+	}
 	offset := (page - 1) * pageSize
 
 	var total int
@@ -105,6 +114,9 @@ func (s *Store) ListUsers(ctx context.Context, page, pageSize int) ([]*UserRow, 
 }
 
 func (s *Store) SetUserStatus(ctx context.Context, id uuid.UUID, status models.UserStatus) error {
+	if s.pool == nil {
+		return errNoPool
+	}
 	_, err := s.pool.Exec(ctx, `UPDATE users SET status = $2 WHERE id = $1`, id, status)
 	return err
 }
@@ -116,6 +128,9 @@ type DeviceRow struct {
 }
 
 func (s *Store) ListDevices(ctx context.Context, page, pageSize int) ([]*DeviceRow, int, error) {
+	if s.pool == nil {
+		return nil, 0, errNoPool
+	}
 	offset := (page - 1) * pageSize
 
 	var total int
@@ -156,6 +171,9 @@ func (s *Store) ListDevices(ctx context.Context, page, pageSize int) ([]*DeviceR
 }
 
 func (s *Store) DeleteDevice(ctx context.Context, id uuid.UUID) error {
+	if s.pool == nil {
+		return errNoPool
+	}
 	_, err := s.pool.Exec(ctx, `DELETE FROM devices WHERE id = $1`, id)
 	return err
 }
@@ -173,6 +191,9 @@ type AuditRow struct {
 }
 
 func (s *Store) ListAudit(ctx context.Context, page, pageSize int) ([]*AuditRow, int, error) {
+	if s.pool == nil {
+		return nil, 0, errNoPool
+	}
 	offset := (page - 1) * pageSize
 
 	var total int

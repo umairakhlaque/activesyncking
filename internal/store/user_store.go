@@ -46,6 +46,9 @@ func (s *UserStore) GetByUsername(ctx context.Context, username string) (*models
 }
 
 func (s *UserStore) GetByID(ctx context.Context, id uuid.UUID) (*models.User, error) {
+	if s.pool == nil {
+		return nil, ErrNotFound
+	}
 	const q = `
 		SELECT id, username, email, display_name, status, source,
 		       password_hash, failed_logins, locked_until, created_at, updated_at
