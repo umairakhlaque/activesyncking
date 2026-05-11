@@ -34,7 +34,13 @@ func main() {
 		log.Fatal("failed to load config", zap.Error(err))
 	}
 
-	// Log startup state so Fly.io log tail can confirm what's configured.
+	// Viper's env-key replacer can silently fail for nested keys that already
+	// contain underscores (e.g. api_key). Read the env var directly as a
+	// guaranteed fallback so the service always picks up the secret.
+	if cfg.Admin.APIKey == "" {
+		cfg.Admin.APIKey = os.Getenv("SYNCGUARD_ADMIN_API_KEY")
+	}
+
 	log.Info("config loaded",
 		zap.String("listen", cfg.Admin.Listen),
 		zap.Bool("api_key_set", cfg.Admin.APIKey != ""),
