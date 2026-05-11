@@ -62,6 +62,9 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: go, javascript
+          # Disable Go auto-instrumentation — it conflicts with setup-go@v6
+          # We manually build with go build ./cmd/... instead
+          skip-queries: true
 
       - uses: actions/setup-go@v6
         with:
