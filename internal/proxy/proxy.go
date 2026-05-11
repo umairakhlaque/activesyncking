@@ -3,7 +3,6 @@ package proxy
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -226,21 +225,4 @@ func realIP(r *http.Request) string {
 	}
 	host, _, _ := net.SplitHostPort(r.RemoteAddr)
 	return host
-}
-
-// decodeBasicAuth extracts username:password from a Basic Authorization header.
-// Kept here for tests; the standard library r.BasicAuth() is used in ServeHTTP.
-func decodeBasicAuth(header string) (string, string, bool) {
-	if !strings.HasPrefix(header, "Basic ") {
-		return "", "", false
-	}
-	payload, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(header, "Basic "))
-	if err != nil {
-		return "", "", false
-	}
-	parts := strings.SplitN(string(payload), ":", 2)
-	if len(parts) != 2 {
-		return "", "", false
-	}
-	return parts[0], parts[1], true
 }

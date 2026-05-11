@@ -48,10 +48,10 @@ jobs:
       SYNCGUARD_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000001"
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
@@ -72,7 +72,7 @@ jobs:
         run: go test -race -timeout 120s -coverprofile=coverage.out ./...
 
       - name: Upload coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: always()
         with:
           name: go-coverage
@@ -87,10 +87,10 @@ jobs:
         working-directory: web/admin
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
