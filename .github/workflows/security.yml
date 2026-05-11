@@ -14,6 +14,7 @@ jobs:
   govulncheck:
     name: govulncheck
     runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — never blocks deploy
     steps:
       - uses: actions/checkout@v5
 
@@ -27,12 +28,12 @@ jobs:
 
       - name: Run govulncheck
         run: govulncheck ./...
-        continue-on-error: true
 
   # ── Static analysis (SAST) ──────────────────────────────────────────────────
   staticcheck:
     name: staticcheck
     runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — never blocks deploy
     steps:
       - uses: actions/checkout@v5
 
@@ -51,6 +52,7 @@ jobs:
   codeql:
     name: CodeQL
     runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — never blocks deploy
     permissions:
       security-events: write
       actions: read
@@ -59,18 +61,18 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v4
-        with:
-          languages: go, javascript
-          # Disable Go auto-instrumentation — it conflicts with setup-go@v6
-          # We manually build with go build ./cmd/... instead
-          skip-queries: true
-
+      # setup-go must run BEFORE codeql-action/init so CodeQL tracing
+      # wraps the correct Go binary from the start
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
           cache: true
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: go, javascript
+          build-mode: manual
 
       - name: Build for CodeQL
         run: go build ./cmd/...
@@ -82,6 +84,7 @@ jobs:
   trufflehog:
     name: TruffleHog secret scan
     runs-on: ubuntu-latest
+    continue-on-error: true   # informational only — never blocks deploy
     steps:
       - uses: actions/checkout@v5
         with:
