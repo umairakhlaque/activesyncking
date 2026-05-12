@@ -67,7 +67,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install flyctl
+        run: |
+          for i in 1 2 3 4; do
+            curl -fsSL https://fly.io/install.sh | sh && break
+            echo "Attempt $i failed, retrying in $((i*2))s..."
+            sleep $((i*2))
+          done
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Create app if it does not exist
         run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
@@ -90,7 +97,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install flyctl
+        run: |
+          for i in 1 2 3 4; do
+            curl -fsSL https://fly.io/install.sh | sh && break
+            echo "Attempt $i failed, retrying in $((i*2))s..."
+            sleep $((i*2))
+          done
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Create app if it does not exist
         run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
@@ -126,7 +140,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install flyctl
+        run: |
+          for i in 1 2 3 4; do
+            curl -fsSL https://fly.io/install.sh | sh && break
+            echo "Attempt $i failed, retrying in $((i*2))s..."
+            sleep $((i*2))
+          done
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Create app if it does not exist
         run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
@@ -160,7 +181,14 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Install flyctl
+        run: |
+          for i in 1 2 3 4; do
+            curl -fsSL https://fly.io/install.sh | sh && break
+            echo "Attempt $i failed, retrying in $((i*2))s..."
+            sleep $((i*2))
+          done
+          echo "$HOME/.fly/bin" >> $GITHUB_PATH
 
       - name: Create app if it does not exist
         run: flyctl apps create ${{ env.FLY_APP }} --org personal 2>/dev/null || true
